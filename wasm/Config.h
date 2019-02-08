@@ -28,18 +28,22 @@ struct Configuration {
      return false;
   }
   bool AllowUndefined;
-  bool CompressRelocTargets;
+  bool CompressRelocations;
   bool Demangle;
   bool DisableVerify;
   bool ExportAll;
+  bool ExportDynamic;
   bool ExportTable;
   bool GcSections;
   bool ImportMemory;
+  bool SharedMemory;
   bool ImportTable;
   bool MergeDataSegments;
+  bool Pie;
   bool PrintGcSections;
   bool Relocatable;
   bool SaveTemps;
+  bool Shared;
   bool StripAll;
   bool StripDebug;
   bool StackFirst;
@@ -59,6 +63,9 @@ struct Configuration {
   llvm::StringSet<> AllowUndefinedSymbols;
   std::vector<llvm::StringRef> SearchPaths;
   llvm::CachePruningPolicy ThinLTOCachePolicy;
+
+  // True if we are creating position-independent code.
+  bool Pic;
 };
 
 // The only instance of Configuration struct.

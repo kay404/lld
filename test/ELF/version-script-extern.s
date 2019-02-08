@@ -12,7 +12,7 @@
 
 # DSO:      DynamicSymbols [
 # DSO-NEXT:    Symbol {
-# DSO-NEXT:      Name: @
+# DSO-NEXT:      Name:
 # DSO-NEXT:      Value: 0x0
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Local
@@ -68,13 +68,13 @@
 # DSO-NEXT:  ]
 # DSO-NEXT:  Version symbols {
 # DSO-NEXT:    Section Name: .gnu.version
-# DSO-NEXT:    Address: 0x2BA
-# DSO-NEXT:    Offset: 0x2BA
+# DSO-NEXT:    Address: 0x258
+# DSO-NEXT:    Offset: 0x258
 # DSO-NEXT:    Link: 1
 # DSO-NEXT:    Symbols [
 # DSO-NEXT:      Symbol {
 # DSO-NEXT:        Version: 0
-# DSO-NEXT:        Name: @
+# DSO-NEXT:        Name:
 # DSO-NEXT:      }
 # DSO-NEXT:      Symbol {
 # DSO-NEXT:        Version: 3

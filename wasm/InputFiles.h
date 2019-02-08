@@ -20,21 +20,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include <vector>
 
-using llvm::object::Archive;
-using llvm::object::WasmObjectFile;
-using llvm::object::WasmSection;
-using llvm::object::WasmSymbol;
-using llvm::wasm::WasmGlobal;
-using llvm::wasm::WasmImport;
-using llvm::wasm::WasmRelocation;
-using llvm::wasm::WasmSignature;
-
-namespace llvm {
-namespace lto {
-class InputFile;
-}
-} // namespace llvm
-
 namespace lld {
 namespace wasm {
 
@@ -42,6 +27,7 @@ class InputChunk;
 class InputFunction;
 class InputSegment;
 class InputGlobal;
+class InputEvent;
 class InputSection;
 
 class InputFile {
@@ -63,7 +49,7 @@ public:
   Kind kind() const { return FileKind; }
 
   // An archive file name if this file is created from an archive.
-  StringRef ParentName;
+  StringRef ArchiveName;
 
   ArrayRef<Symbol *> getSymbols() const { return Symbols; }
 
@@ -85,12 +71,12 @@ public:
   explicit ArchiveFile(MemoryBufferRef M) : InputFile(ArchiveKind, M) {}
   static bool classof(const InputFile *F) { return F->kind() == ArchiveKind; }
 
-  void addMember(const Archive::Symbol *Sym);
+  void addMember(const llvm::object::Archive::Symbol *Sym);
 
   void parse() override;
 
 private:
-  std::unique_ptr<Archive> File;
+  std::unique_ptr<llvm::object::Archive> File;
   llvm::DenseSet<uint64_t> Seen;
 };
 
@@ -124,6 +110,7 @@ public:
   std::vector<InputSegment *> Segments;
   std::vector<InputFunction *> Functions;
   std::vector<InputGlobal *> Globals;
+  std::vector<InputEvent *> Events;
   std::vector<InputSection *> CustomSections;
   llvm::DenseMap<uint32_t, InputSection *> CustomSectionsByIndex;
 
@@ -135,6 +122,8 @@ public:
   std::string getEosioABI() const { return eosio_abi; }
   ArrayRef<StringRef> getEosioActions() const { return eosio_actions; }
   ArrayRef<StringRef> getEosioNotify() const { return eosio_notify; }
+  EventSymbol *getEventSymbol(uint32_t Index) const;
+
 private:
   std::string eosio_abi;
   ArrayRef<StringRef> eosio_actions;
@@ -155,6 +144,10 @@ public:
   void parse() override;
   std::unique_ptr<llvm::lto::InputFile> Obj;
 };
+
+// Will report a fatal() error if the input buffer is not a valid bitcode
+// or was object file.
+InputFile *createObjectFile(MemoryBufferRef MB);
 
 // Opens a given file.
 llvm::Optional<MemoryBufferRef> readFile(StringRef Path);

@@ -1,3 +1,4 @@
+// REQUIRES: ppc
 // RUN: llvm-mc -filetype=obj -triple=powerpc64le-unknown-linux %s -o %t.o
 // RUN: ld.lld -shared %t.o -o %t.so
 // RUN: llvm-readobj -t -r -dyn-symbols %t.so | FileCheck %s
@@ -5,8 +6,6 @@
 // RUN: llvm-mc -filetype=obj -triple=powerpc64-unknown-linux %s -o %t.o
 // RUN: ld.lld -shared %t.o -o %t.so
 // RUN: llvm-readobj -t -r -dyn-symbols %t.so | FileCheck %s
-
-// REQUIRES: ppc
 
 // Test that we create R_PPC64_RELATIVE relocations but don't put any
 // symbols in the dynamic symbol table.
@@ -33,7 +32,7 @@
 
 // CHECK:      DynamicSymbols [
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: @
+// CHECK-NEXT:     Name:
 // CHECK-NEXT:     Value: 0x0
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Local
@@ -42,7 +41,7 @@
 // CHECK-NEXT:     Section: Undefined
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: external@
+// CHECK-NEXT:     Name: external
 // CHECK-NEXT:     Value: 0x0
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global

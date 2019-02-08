@@ -1,3 +1,4 @@
+// REQUIRES: x86
 // RUN: llvm-mc -filetype=obj -triple=i686-unknown-linux %s -o %t.o
 // RUN: llvm-mc -filetype=obj -triple=i686-unknown-linux %p/Inputs/shared.s -o %t2.o
 // RUN: ld.lld --hash-style=sysv -shared %t2.o -o %t2.so
@@ -6,7 +7,6 @@
 // RUN: llvm-readobj --program-headers --dynamic-table -t -s -dyn-symbols -section-data -hash-table %t | FileCheck %s
 // RUN: ld.lld --hash-style=sysv %t.o %t2.so %t2.so -o %t2
 // RUN: llvm-readobj -dyn-symbols %t2 | FileCheck --check-prefix=DONT_EXPORT %s
-// REQUIRES: x86
 
 // Make sure .symtab is properly aligned.
 // SO:      Name: .symtab
@@ -59,24 +59,8 @@
 // CHECK-NEXT:     0030:
 // CHECK-NEXT:   )
 // CHECK-NEXT: }
-// CHECK:        Index: [[DYNSTR]]
-// CHECK-NEXT:   Name: .dynstr
-// CHECK-NEXT:   Type: SHT_STRTAB
-// CHECK-NEXT:   Flags [
-// CHECK-NEXT:     SHF_ALLOC
-// CHECK-NEXT:   ]
-// CHECK-NEXT:   Address: [[DYNSTRADDR:.*]]
-// CHECK-NEXT:   Offset:
-// CHECK-NEXT:   Size:
-// CHECK-NEXT:   Link: 0
-// CHECK-NEXT:   Info: 0
-// CHECK-NEXT:   AddressAlignment: 1
-// CHECK-NEXT:   EntrySize: 0
-// CHECK-NEXT:   SectionData (
-// CHECK:        )
-// CHECK-NEXT: }
 // CHECK-NEXT: Section {
-// CHECK-NEXT:   Index: 4
+// CHECK-NEXT:   Index: 3
 // CHECK-NEXT:    Name: .hash
 // CHECK-NEXT:    Type: SHT_HASH
 // CHECK-NEXT:    Flags [
@@ -89,6 +73,20 @@
 // CHECK-NEXT:    Info: 0
 // CHECK-NEXT:    AddressAlignment: 4
 // CHECK-NEXT:    EntrySize: 4
+// CHECK:      Section {
+// CHECK-NEXT:   Index: [[DYNSTR]]
+// CHECK-NEXT:   Name: .dynstr
+// CHECK-NEXT:   Type: SHT_STRTAB
+// CHECK-NEXT:   Flags [
+// CHECK-NEXT:     SHF_ALLOC
+// CHECK-NEXT:   ]
+// CHECK-NEXT:   Address: [[DYNSTRADDR:.*]]
+// CHECK-NEXT:   Offset:
+// CHECK-NEXT:   Size:
+// CHECK-NEXT:   Link: 0
+// CHECK-NEXT:   Info: 0
+// CHECK-NEXT:   AddressAlignment: 1
+// CHECK-NEXT:   EntrySize: 0
 
 // CHECK:      Name: .rel.dyn
 // CHECK-NEXT: Type: SHT_REL
@@ -143,7 +141,7 @@
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: _DYNAMIC
-// CHECK-NEXT:     Value: 0x12000
+// CHECK-NEXT:     Value: 0x402000
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Local
 // CHECK-NEXT:     Type: None
@@ -154,7 +152,7 @@
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
 // CHECK-NEXT:     Name: _start
-// CHECK-NEXT:     Value: 0x11000
+// CHECK-NEXT:     Value: 0x401000
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global
 // CHECK-NEXT:     Type: None
@@ -183,7 +181,7 @@
 
 // CHECK:      DynamicSymbols [
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: @
+// CHECK-NEXT:     Name:
 // CHECK-NEXT:     Value: 0x0
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Local
@@ -192,8 +190,8 @@
 // CHECK-NEXT:     Section: Undefined
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: _start@
-// CHECK-NEXT:     Value: 0x11000
+// CHECK-NEXT:     Name: _start
+// CHECK-NEXT:     Value: 0x401000
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global
 // CHECK-NEXT:     Type: Non
@@ -201,7 +199,7 @@
 // CHECK-NEXT:     Section: .text
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: bar@
+// CHECK-NEXT:     Name: bar
 // CHECK-NEXT:     Value: 0x0
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global
@@ -210,7 +208,7 @@
 // CHECK-NEXT:     Section: Undefined
 // CHECK-NEXT:   }
 // CHECK-NEXT:   Symbol {
-// CHECK-NEXT:     Name: zed@
+// CHECK-NEXT:     Name: zed
 // CHECK-NEXT:     Value: 0x0
 // CHECK-NEXT:     Size: 0
 // CHECK-NEXT:     Binding: Global
@@ -222,7 +220,7 @@
 
 // DONT_EXPORT:      DynamicSymbols [
 // DONT_EXPORT-NEXT:   Symbol {
-// DONT_EXPORT-NEXT:     Name: @
+// DONT_EXPORT-NEXT:     Name:
 // DONT_EXPORT-NEXT:     Value: 0x0
 // DONT_EXPORT-NEXT:     Size: 0
 // DONT_EXPORT-NEXT:     Binding: Local (0x0)
@@ -231,7 +229,7 @@
 // DONT_EXPORT-NEXT:     Section: Undefined (0x0)
 // DONT_EXPORT-NEXT:   }
 // DONT_EXPORT-NEXT:   Symbol {
-// DONT_EXPORT-NEXT:     Name: bar@
+// DONT_EXPORT-NEXT:     Name: bar
 // DONT_EXPORT-NEXT:     Value: 0x0
 // DONT_EXPORT-NEXT:     Size: 0
 // DONT_EXPORT-NEXT:     Binding: Global
@@ -240,7 +238,7 @@
 // DONT_EXPORT-NEXT:     Section: Undefined
 // DONT_EXPORT-NEXT:   }
 // DONT_EXPORT-NEXT:   Symbol {
-// DONT_EXPORT-NEXT:     Name: zed@
+// DONT_EXPORT-NEXT:     Name: zed
 // DONT_EXPORT-NEXT:     Value: 0x0
 // DONT_EXPORT-NEXT:     Size: 0
 // DONT_EXPORT-NEXT:     Binding: Global

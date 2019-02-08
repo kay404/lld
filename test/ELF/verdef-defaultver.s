@@ -8,7 +8,7 @@
 
 # DSO:      DynamicSymbols [
 # DSO-NEXT:    Symbol {
-# DSO-NEXT:      Name: @
+# DSO-NEXT:      Name:
 # DSO-NEXT:      Value: 0x0
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Local
@@ -55,13 +55,13 @@
 # DSO-NEXT:  ]
 # DSO-NEXT:  Version symbols {
 # DSO-NEXT:    Section Name: .gnu.version
-# DSO-NEXT:    Address: 0x256
-# DSO-NEXT:    Offset: 0x256
+# DSO-NEXT:    Address: 0x240
+# DSO-NEXT:    Offset: 0x240
 # DSO-NEXT:    Link: 1
 # DSO-NEXT:    Symbols [
 # DSO-NEXT:      Symbol {
 # DSO-NEXT:        Version: 0
-# DSO-NEXT:        Name: @
+# DSO-NEXT:        Name:
 # DSO-NEXT:      }
 # DSO-NEXT:      Symbol {
 # DSO-NEXT:        Version: 2
@@ -112,7 +112,7 @@
 
 # EXE:      DynamicSymbols [
 # EXE-NEXT:    Symbol {
-# EXE-NEXT:      Name: @
+# EXE-NEXT:      Name:
 # EXE-NEXT:      Value: 0x0
 # EXE-NEXT:      Size: 0
 # EXE-NEXT:      Binding: Local
@@ -150,13 +150,13 @@
 # EXE-NEXT:  ]
 # EXE-NEXT:  Version symbols {
 # EXE-NEXT:    Section Name: .gnu.version
-# EXE-NEXT:    Address: 0x20023C
-# EXE-NEXT:    Offset: 0x23C
+# EXE-NEXT:    Address: 0x200228
+# EXE-NEXT:    Offset: 0x228
 # EXE-NEXT:    Link: 1
 # EXE-NEXT:    Symbols [
 # EXE-NEXT:      Symbol {
 # EXE-NEXT:        Version: 0
-# EXE-NEXT:        Name: @
+# EXE-NEXT:        Name:
 # EXE-NEXT:      }
 # EXE-NEXT:      Symbol {
 # EXE-NEXT:        Version: 2

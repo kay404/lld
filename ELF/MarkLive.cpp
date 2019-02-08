@@ -45,7 +45,7 @@ using namespace lld::elf;
 template <class ELFT>
 static typename ELFT::uint getAddend(InputSectionBase &Sec,
                                      const typename ELFT::Rel &Rel) {
-  return Target->getImplicitAddend(Sec.Data.begin() + Rel.r_offset,
+  return Target->getImplicitAddend(Sec.data().begin() + Rel.r_offset,
                                    Rel.getType(Config->IsMips64EL));
 }
 
@@ -60,8 +60,9 @@ static typename ELFT::uint getAddend(InputSectionBase &Sec,
 static DenseMap<StringRef, std::vector<InputSectionBase *>> CNamedSections;
 
 template <class ELFT, class RelT>
-static void resolveReloc(InputSectionBase &Sec, RelT &Rel,
-                         std::function<void(InputSectionBase *, uint64_t)> Fn) {
+static void
+resolveReloc(InputSectionBase &Sec, RelT &Rel,
+             llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
   Symbol &B = Sec.getFile<ELFT>()->getRelocTargetSym(Rel);
 
   // If a symbol is referenced in a live section, it is used.
@@ -90,7 +91,7 @@ static void resolveReloc(InputSectionBase &Sec, RelT &Rel,
 template <class ELFT>
 static void
 forEachSuccessor(InputSection &Sec,
-                 std::function<void(InputSectionBase *, uint64_t)> Fn) {
+                 llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
   if (Sec.AreRelocsRela) {
     for (const typename ELFT::Rela &Rel : Sec.template relas<ELFT>())
       resolveReloc<ELFT>(Sec, Rel, Fn);
@@ -120,7 +121,7 @@ forEachSuccessor(InputSection &Sec,
 template <class ELFT, class RelTy>
 static void
 scanEhFrameSection(EhInputSection &EH, ArrayRef<RelTy> Rels,
-                   std::function<void(InputSectionBase *, uint64_t)> Fn) {
+                   llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
   const endianness E = ELFT::TargetEndianness;
 
   for (unsigned I = 0, N = EH.Pieces.size(); I < N; ++I) {
@@ -155,7 +156,7 @@ scanEhFrameSection(EhInputSection &EH, ArrayRef<RelTy> Rels,
 template <class ELFT>
 static void
 scanEhFrameSection(EhInputSection &EH,
-                   std::function<void(InputSectionBase *, uint64_t)> Fn) {
+                   llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
   if (!EH.NumRelocations)
     return;
 
@@ -249,9 +250,10 @@ template <class ELFT> static void doGcSections() {
 
     if (Sec->Flags & SHF_LINK_ORDER)
       continue;
-    if (isReserved<ELFT>(Sec) || Script->shouldKeep(Sec))
+
+    if (isReserved<ELFT>(Sec) || Script->shouldKeep(Sec)) {
       Enqueue(Sec, 0);
-    else if (isValidCIdentifier(Sec->Name)) {
+    } else if (isValidCIdentifier(Sec->Name)) {
       CNamedSections[Saver.save("__start_" + Sec->Name)].push_back(Sec);
       CNamedSections[Saver.save("__stop_" + Sec->Name)].push_back(Sec);
     }
@@ -266,10 +268,16 @@ template <class ELFT> static void doGcSections() {
 // input sections. This function make some or all of them on
 // so that they are emitted to the output file.
 template <class ELFT> void elf::markLive() {
-  // If -gc-sections is missing, no sections are removed.
   if (!Config->GcSections) {
+    // If -gc-sections is missing, no sections are removed.
     for (InputSectionBase *Sec : InputSections)
       Sec->Live = true;
+
+    // If a DSO defines a symbol referenced in a regular object, it is needed.
+    for (Symbol *Sym : Symtab->getSymbols())
+      if (auto *S = dyn_cast<SharedSymbol>(Sym))
+        if (S->IsUsedInRegularObj && !S->isWeak())
+          S->getFile<ELFT>().IsNeeded = true;
     return;
   }
 
