@@ -27,6 +27,9 @@ defm demangle: B<"demangle",
     "Demangle symbol names",
     "Do not demangle symbol names">;
 
+def disable_abigen: F<"disable-abigen">,
+  HelpText<"Do not generate a corresponding abi file">;
+
 def entry: S<"entry">, MetaVarName<"<entry>">,
   HelpText<"Name of entry point symbol">;
 

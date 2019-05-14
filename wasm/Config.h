@@ -30,6 +30,7 @@ struct Configuration {
   bool AllowUndefined;
   bool CompressRelocTargets;
   bool Demangle;
+  bool DisableAbigen;
   bool DisableVerify;
   bool ExportAll;
   bool ExportTable;

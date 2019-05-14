@@ -318,6 +318,7 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
 
   Config->AllowUndefined = Args.hasArg(OPT_allow_undefined);
   Config->Demangle = Args.hasFlag(OPT_demangle, OPT_no_demangle, true);
+  Config->DisableAbigen = Args.hasArg(OPT_disable_abigen);
   Config->DisableVerify = Args.hasArg(OPT_disable_verify);
   Config->Entry = getEntry(Args, Args.hasArg(OPT_relocatable) ? "" : "_start");
   Config->ExportAll = Args.hasArg(OPT_export_all);
@@ -523,6 +524,7 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   // Do size optimizations: garbage collection
   markLive();
 
+  std::cout << "VALUE OF OPT_DISABLE_ABIGEN " << OPT_disable_abigen << "\n";
   // Write the result to the file.
-  writeResult(true);
+  writeResult(OPT_disable_abigen);
 }
