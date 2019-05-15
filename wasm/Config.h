@@ -30,7 +30,6 @@ struct Configuration {
   bool AllowUndefined;
   bool CompressRelocTargets;
   bool Demangle;
-  bool DisableAbigen;
   bool DisableVerify;
   bool ExportAll;
   bool ExportTable;
@@ -38,6 +37,7 @@ struct Configuration {
   bool ImportMemory;
   bool ImportTable;
   bool MergeDataSegments;
+  bool NoAbigen;
   bool PrintGcSections;
   bool Relocatable;
   bool SaveTemps;

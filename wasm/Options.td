@@ -27,9 +27,6 @@ defm demangle: B<"demangle",
     "Demangle symbol names",
     "Do not demangle symbol names">;
 
-def disable_abigen: F<"disable-abigen">,
-  HelpText<"Do not generate a corresponding abi file">;
-
 def entry: S<"entry">, MetaVarName<"<entry>">,
   HelpText<"Name of entry point symbol">;
 
@@ -59,6 +56,9 @@ def L: JoinedOrSeparate<["-"], "L">, MetaVarName<"<dir>">,
   HelpText<"Add a directory to the library search path">;
 
 def mllvm: S<"mllvm">, HelpText<"Options to pass to LLVM">;
+
+def no_abigen: F<"no-abigen">,
+  HelpText<"Disable ABI file generation">;
 
 def no_threads: F<"no-threads">,
   HelpText<"Do not run the linker multi-threaded">;

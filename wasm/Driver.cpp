@@ -524,7 +524,11 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   // Do size optimizations: garbage collection
   markLive();
 
-  std::cout << "VALUE OF OPT_DISABLE_ABIGEN " << OPT_disable_abigen << "\n";
-  // Write the result to the file.
-  writeResult(OPT_disable_abigen);
+  // Write the result to the file
+  if (Config->NoAbigen) {
+     writeResult(false);
+  }
+  else {
+     writeResult(true);
+  }
 }
