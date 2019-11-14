@@ -1170,12 +1170,10 @@ void Writer::createDispatchFunction() {
       // dispatch notification handlers
       bool notify0_need_else = false;
       if (not_cnt > 0) {
-         bool has_written = false;
          for (auto const& notif0 : notify_handlers) {
             uint64_t nm = eosio::cdt::string_to_name(notif0.first.c_str());
             if (notif0.first == "*")
                continue;
-            has_written = true;
             if (notify0_need_else)
                writeU8(OS, OPCODE_ELSE, "ELSE");
             writeU8(OS, OPCODE_I64_CONST, "I64.CONST");
@@ -1192,19 +1190,17 @@ void Writer::createDispatchFunction() {
                writeU8(OS, OPCODE_END, "END");
             notify0_need_else = true;
          }
-         if (has_written)
-            writeU8(OS, OPCODE_ELSE, "ELSE");
       }
 
       if (!notify_handlers["*"].empty()) {
-         bool need_else = false;
          for (auto const& notif1 : notify_handlers["*"]) {
-            create_if(OS, notif1, need_else);
+            create_if(OS, notif1, notify0_need_else);
          }
       }
 
       if (post_sym) {
-         writeU8(OS, OPCODE_ELSE, "ELSE");
+         if(notify0_need_else)
+            writeU8(OS, OPCODE_ELSE, "ELSE");
          uint32_t post_idx  = post_sym->getFunctionIndex();
          writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
          writeUleb128(OS, 0, "receiver");
@@ -1214,7 +1210,6 @@ void Writer::createDispatchFunction() {
          writeUleb128(OS, 2, "action");
          writeU8(OS, OPCODE_CALL, "CALL");
          writeUleb128(OS, post_idx, "post_dispatch call");
-         writeU8(OS, OPCODE_END, "END");
       }
 
       for (int i=0; i < notify_handlers["*"].size(); i++)
