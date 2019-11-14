@@ -520,8 +520,9 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   std::vector<char*> export_strs;
   for (auto *Arg : Args.filtered(OPT_only_export)) {
      auto name  = get_first(std::string(Arg->getValue()));
-     char* cname = new char[name.size()];
+     char* cname = new char[name.size()+1];
      memcpy(cname, name.c_str(), name.size());
+     cname[name.size()] = '\0';
      export_strs.push_back(cname);
      if (!name.empty()) {
         auto type = get_second(std::string(Arg->getValue()));
