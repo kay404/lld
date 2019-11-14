@@ -1167,6 +1167,22 @@ void Writer::createDispatchFunction() {
          writeU8(OS, OPCODE_END, "END");
       }
 
+      auto create_post_dispatch = [&](bool need_else) {
+         if (post_sym) {
+            if(need_else)
+               writeU8(OS, OPCODE_ELSE, "ELSE");
+            uint32_t post_idx  = post_sym->getFunctionIndex();
+            writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
+            writeUleb128(OS, 0, "receiver");
+            writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
+            writeUleb128(OS, 1, "code");
+            writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
+            writeUleb128(OS, 2, "action");
+            writeU8(OS, OPCODE_CALL, "CALL");
+            writeUleb128(OS, post_idx, "post_dispatch call");
+         }
+      };
+
       // dispatch notification handlers
       bool notify0_need_else = false;
       if (not_cnt > 0) {
@@ -1186,6 +1202,7 @@ void Writer::createDispatchFunction() {
             bool need_else = false;
             for (auto const& notif1 : notif0.second)
                create_if(OS, notif1, need_else);
+            create_post_dispatch(need_else);
             for (int i=0; i < notif0.second.size(); i++)
                writeU8(OS, OPCODE_END, "END");
             notify0_need_else = true;
@@ -1198,19 +1215,7 @@ void Writer::createDispatchFunction() {
          }
       }
 
-      if (post_sym) {
-         if(notify0_need_else)
-            writeU8(OS, OPCODE_ELSE, "ELSE");
-         uint32_t post_idx  = post_sym->getFunctionIndex();
-         writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
-         writeUleb128(OS, 0, "receiver");
-         writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
-         writeUleb128(OS, 1, "code");
-         writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
-         writeUleb128(OS, 2, "action");
-         writeU8(OS, OPCODE_CALL, "CALL");
-         writeUleb128(OS, post_idx, "post_dispatch call");
-      }
+      create_post_dispatch(notify0_need_else);
 
       for (int i=0; i < notify_handlers["*"].size(); i++)
         writeU8(OS, OPCODE_END, "END");
