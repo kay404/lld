@@ -440,6 +440,11 @@ static Symbol *handleUndefined(StringRef name) {
   return sym;
 }
 
+static Symbol *addUndefined(StringRef name) {
+  return symtab->addUndefinedFunction(name, "", "", 0, nullptr, nullptr, false);
+}
+
+
 static UndefinedGlobal *
 createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
   auto *sym =
@@ -487,35 +492,30 @@ static void createSyntheticSymbols() {
     Global.InitExpr.Opcode = WASM_OPCODE_I32_CONST;
     Global.SymbolName = "__stack_pointer";
     InputGlobal *StackPointer = make<InputGlobal>(Global, nullptr);
-    StackPointer->Live = true;
+    StackPointer->live = true;
 
-    static WasmSignature EntrySignature;
-    if (!Config->OtherModel)
-       EntrySignature = {{WASM_TYPE_I64, WASM_TYPE_I64, WASM_TYPE_I64}, WASM_TYPE_NORESULT};
-    else
-       EntrySignature = {{}, WASM_TYPE_NORESULT};
-    WasmSym::EntryFunc = Symtab->addSyntheticFunction(
-         Config->Entry, WASM_SYMBOL_VISIBILITY_DEFAULT | WASM_SYMBOL_BINDING_WEAK,
-         make<SyntheticFunction>(EntrySignature, Config->Entry));
+    static WasmSignature EntrySignature = config->OtherModel ? nullSignature : WasmSignature{{ValType::I64, ValType::I64, ValType::I64}, {}};
+    WasmSym::EntryFunc = symtab->addSyntheticFunction(
+         config->entry, WASM_SYMBOL_VISIBILITY_DEFAULT | WASM_SYMBOL_BINDING_WEAK,
+         make<SyntheticFunction>(EntrySignature, config->entry));
 
+    /*
     // TODO(sbc): Remove WASM_SYMBOL_VISIBILITY_HIDDEN when the mutable global
     // spec proposal is implemented in all major browsers.
     // See: https://github.com/WebAssembly/mutable-global
-    WasmSym::StackPointer = Symtab->addSyntheticGlobal(
+    WasmSym::StackPointer = symtab->addSyntheticGlobal(
         "__stack_pointer", WASM_SYMBOL_VISIBILITY_HIDDEN, StackPointer);
-    WasmSym::HeapBase = Symtab->addSyntheticDataSymbol("__heap_base", 0);
-    WasmSym::DsoHandle = Symtab->addSyntheticDataSymbol(
+    WasmSym::HeapBase = symtab->addSyntheticDataSymbol("__heap_base", 0);
+    WasmSym::DsoHandle = symtab->addSyntheticDataSymbol(
         "__dso_handle", WASM_SYMBOL_VISIBILITY_HIDDEN);
-    WasmSym::DataEnd = Symtab->addSyntheticDataSymbol("__data_end", 0);
+    WasmSym::DataEnd = symtab->addSyntheticDataSymbol("__data_end", 0);
+    */
 
     // For now, since we don't actually use the start function as the
     // wasm start symbol, we don't need to care about it signature.
-    if (!Config->Entry.empty())
-      EntrySym = addUndefined(Config->Entry);
-
-    // Handle the `--undefined <sym>` options.
-    for (auto *Arg : Args.filtered(OPT_undefined))
-      addUndefined(Arg->getValue());
+    Symbol* EntrySym = nullptr;
+    if (!config->entry.empty())
+      EntrySym = addUndefined(config->entry);
   }
 
   if (!config->shared)
@@ -621,10 +621,6 @@ struct WrappedSymbol {
   Symbol *real;
   Symbol *wrap;
 };
-
-static Symbol *addUndefined(StringRef name) {
-  return symtab->addUndefinedFunction(name, "", "", 0, nullptr, nullptr, false);
-}
 
 // Handles -wrap option.
 //
@@ -747,8 +743,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
     config->exportedSymbols.insert(arg->getValue());
 
   Symbol *EntrySym = nullptr;
-  if (!Config->Relocatable) {
-      if (!config->relocatable)
+  if (!config->relocatable)
     createSyntheticSymbols();
 
   createFiles(args);
@@ -787,7 +782,6 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   // Create wrapped symbols for -wrap option.
   std::vector<WrappedSymbol> wrapped = addWrappedSymbols(args);
 
->>>>>>> upstream_llvm/release_90
   // Do link-time optimization if given files are LLVM bitcode files.
   // This compiles bitcode files into real object files.
   symtab->addCombinedLTOObject();
@@ -813,7 +807,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
 
   // keep string optimizations from occurring
   std::vector<char*> export_strs;
-  for (auto *Arg : Args.filtered(OPT_only_export)) {
+  for (auto *Arg : args.filtered(OPT_only_export)) {
      auto name  = get_first(std::string(Arg->getValue()));
      char* cname = new char[name.size()];
      memcpy(cname, name.c_str(), name.size());
@@ -821,7 +815,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
      if (!name.empty()) {
         auto type = get_second(std::string(Arg->getValue()));
         WasmExport we = {cname, get_kind(type.c_str()), 0};
-        Config->exports.push_back(we);
+        config->exports.push_back(we);
      }
   }
 

@@ -47,6 +47,8 @@ public:
   void replace(StringRef name, Symbol* sym);
 
   void trace(StringRef name);
+  Symbol* find(StringRef name);
+  ArrayRef<Symbol*> getSymbols()const { return symVector; }
 
   inline void addAllowedUndefFunction(StringRef Name) {
      allowed.insert(Name);

@@ -87,28 +87,28 @@ void lld::wasm::markLive() {
     enqueue(WasmSym::callCtors);
 
   // mark action dispatch stubs as live
-  for (const ObjFile *Obj : Symtab->ObjectFiles) {
+  for (const ObjFile *Obj : symtab->objectFiles) {
      auto wasm_obj = Obj->getWasmObj();
      for (auto func : wasm_obj->functions()) {
         for (auto act : wasm_obj->actions()) {
             if (func.SymbolName == act.substr(act.find(":")+1)) {
-               Enqueue(Symtab->find(func.SymbolName));
+               enqueue(symtab->find(func.SymbolName));
             }
             if (func.SymbolName == "pre_dispatch" || func.SymbolName == "post_dispatch" || func.SymbolName == "eosio_assert_code" ) {
-               Enqueue(Symtab->find(func.SymbolName));
+               enqueue(symtab->find(func.SymbolName));
             }
         }
      }
   }
 
   // mark notify dispatch stubs as live
-  for (const ObjFile *Obj : Symtab->ObjectFiles) {
+  for (const ObjFile *Obj : symtab->objectFiles) {
      auto wasm_obj = Obj->getWasmObj();
      for (auto func : wasm_obj->functions()) {
         for (auto _not : wasm_obj->notify()) {
             std::string sub = _not.substr(_not.find(":")+2);
             if (func.SymbolName == sub.substr(sub.find(":")+1)) {
-               Enqueue(Symtab->find(func.SymbolName));
+               enqueue(symtab->find(func.SymbolName));
             }
         }
      }

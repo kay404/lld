@@ -69,7 +69,6 @@ private:
   void populateSymtab();
   void populateProducers();
   void populateTargetFeatures();
-  void calculateInitFunctions();
   void calculateImports();
   void calculateExports();
   void calculateCustomSections();
@@ -99,13 +98,13 @@ private:
         for (auto abi : abis) {
            merger.set_abi(merger.merge(ojson::parse(abi)));
         }
-        SmallString<64> output_file = Config->OutputFile;
+        SmallString<64> output_file = config->outputFile;
         llvm::sys::path::replace_extension(output_file, ".abi");
         Expected<std::unique_ptr<FileOutputBuffer>> BufferOrErr =
           FileOutputBuffer::create(output_file, merger.get_abi_string().size());
 
         if (!BufferOrErr)
-          error("failed to open " + Config->OutputFile + ": " +
+          error("failed to open " + config->outputFile + ": " +
                 toString(BufferOrErr.takeError()));
         else {
           auto Buffer = std::move(*BufferOrErr);
@@ -679,11 +678,11 @@ static StringRef getOutputDataSegmentName(StringRef name) {
 }
 
 void Writer::createOutputSegments() {
-  for (ObjFile *file : symtab->objectFiles) {
-    if (!File->getEosioABI().empty())
-       abis.push_back(File->getEosioABI());
+  for (ObjFile *_file : symtab->objectFiles) {
+    if (!_file->getEosioABI().empty())
+       abis.push_back(_file->getEosioABI());
 
-    for (InputSegment *segment : file->segments) {
+    for (InputSegment *segment : _file->segments) {
       if (!segment->live)
         continue;
       StringRef name = getOutputDataSegmentName(segment->getName());
@@ -734,7 +733,7 @@ void Writer::createDispatchFunction() {
       writeU8(os, OPCODE_GET_LOCAL, "GET_LOCAL");
       writeUleb128(os, 1, "code");
       writeU8(os, OPCODE_CALL, "CALL");
-      auto func_sym = (FunctionSymbol*)Symtab->find(str.substr(str.find(":")+1));
+      auto func_sym = (FunctionSymbol*)symtab->find(str.substr(str.find(":")+1));
       uint32_t index = func_sym->getFunctionIndex();
       if (index >= 0)
          writeUleb128(os, index, "index");
@@ -742,11 +741,11 @@ void Writer::createDispatchFunction() {
          throw std::runtime_error("wasm_ld internal error function not found");
    };
 
-   auto assert_sym = (FunctionSymbol*)Symtab->find("eosio_assert_code");
+   auto assert_sym = (FunctionSymbol*)symtab->find("eosio_assert_code");
    uint32_t assert_idx = UINT32_MAX;
    if (assert_sym)
      assert_idx = assert_sym->getFunctionIndex();
-   auto post_sym = (FunctionSymbol*)Symtab->find("post_dispatch");
+   auto post_sym = (FunctionSymbol*)symtab->find("post_dispatch");
 
    auto create_action_dispatch = [&](raw_string_ostream& OS) {
       // count how many total actions we have
@@ -755,7 +754,7 @@ void Writer::createDispatchFunction() {
       // create the dispatching for the actions
       std::set<StringRef> has_dispatched;
       bool need_else = false;
-      for (ObjFile *File : Symtab->ObjectFiles) {
+      for (ObjFile *File : symtab->objectFiles) {
         if (!File->getEosioActions().empty()) {
             for (auto act : File->getEosioActions()) {
               if (has_dispatched.insert(act).second) {
@@ -777,7 +776,7 @@ void Writer::createDispatchFunction() {
       writeU8(OS, OPCODE_IF, "if receiver != eosio");
       writeU8(OS, 0x40, "none");
 
-      if (assert_sym && assert_idx < Symtab->getSymbols().size()) {
+      if (assert_sym && assert_idx < symtab->getSymbols().size()) {
         // assert that no action was found
         writeU8(OS, OPCODE_I32_CONST, "I32.CONST");
         writeUleb128(OS, 0, "false");
@@ -812,7 +811,7 @@ void Writer::createDispatchFunction() {
       int not_cnt = 0;
       std::set<StringRef> has_dispatched;
       std::map<std::string, std::vector<std::string>> notify_handlers;
-      for (ObjFile *File : Symtab->ObjectFiles) {
+      for (ObjFile *File : symtab->objectFiles) {
          if (!File->getEosioNotify().empty()) {
             for (auto notif : File->getEosioNotify()) {
               if (has_dispatched.insert(notif).second) {
@@ -930,7 +929,7 @@ void Writer::createDispatchFunction() {
       writeUleb128(OS, 0, "num locals");
 
       // create ctors call
-      auto ctors_sym = (FunctionSymbol*)Symtab->find("__wasm_call_ctors");
+      auto ctors_sym = (FunctionSymbol*)symtab->find("__wasm_call_ctors");
       if (ctors_sym) {
          uint32_t ctors_idx = ctors_sym->getFunctionIndex();
          if (ctors_idx != 0) {
@@ -942,7 +941,7 @@ void Writer::createDispatchFunction() {
 
 
       // create the pre_dispatch function call
-      auto pre_sym = (FunctionSymbol*)Symtab->find("pre_dispatch");
+      auto pre_sym = (FunctionSymbol*)symtab->find("pre_dispatch");
       if (pre_sym) {
          uint32_t pre_idx  = pre_sym->getFunctionIndex();
          writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
@@ -976,10 +975,10 @@ void Writer::createDispatchFunction() {
 
       writeU8(OS, OPCODE_END, "END");
 
-      auto dtors_sym = (FunctionSymbol*)Symtab->find("__cxa_finalize");
+      auto dtors_sym = (FunctionSymbol*)symtab->find("__cxa_finalize");
       if (dtors_sym) {
          uint32_t dtors_idx = dtors_sym->getFunctionIndex();
-         if (dtors_idx != 0 && dtors_idx < Symtab->getSymbols().size()) {
+         if (dtors_idx != 0 && dtors_idx < symtab->getSymbols().size()) {
             writeU8(OS, OPCODE_I32_CONST, "I32.CONST");
             writeUleb128(OS, (uint32_t)0, "NULL");
             writeU8(OS, OPCODE_CALL, "CALL");
@@ -998,8 +997,8 @@ void Writer::createDispatchFunction() {
       OS << BodyContent;
    }
 
-   ArrayRef<uint8_t> Body = toArrayRef(Saver.save(FunctionBody));
-   cast<SyntheticFunction>(WasmSym::EntryFunc->Function)->setBody(Body);
+   ArrayRef<uint8_t> Body = arrayRefFromStringRef(saver.save(FunctionBody));
+   cast<SyntheticFunction>(WasmSym::EntryFunc->function)->setBody(Body);
 };
 
 static void createFunction(DefinedFunction *func, StringRef bodyContent) {
@@ -1231,7 +1230,7 @@ void Writer::run(bool is_entry_defined) {
   assignIndexes();
   log("-- calculateInitFunctions");
   calculateInitFunctions();
-  if (!Config->OtherModel && Symtab->EntryIsUndefined)
+  if (!config->OtherModel && symtab->EntryIsUndefined)
      createDispatchFunction();
 
   if (!config->relocatable) {

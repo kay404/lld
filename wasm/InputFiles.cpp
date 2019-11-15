@@ -260,9 +260,9 @@ void ObjFile::parse(bool ignoreComdats) {
     }
   }
 
-  eosio_abi     = WasmObj->get_eosio_abi();
-  eosio_actions = WasmObj->actions();
-  eosio_notify  = WasmObj->notify();
+  eosio_abi     = wasmObj->get_eosio_abi();
+  eosio_actions = wasmObj->actions();
+  eosio_notify  = wasmObj->notify();
 
   uint32_t sectionIndex = 0;
 
@@ -346,22 +346,20 @@ void ObjFile::parse(bool ignoreComdats) {
       }
     }
     bool should_define = true;
-    for (const auto &A : WasmObj->allowed_imports()) {
-       if (auto sym_name = Sym.getName()) {
+    for (const auto &A : wasmObj->allowed_imports()) {
+       if (auto sym_name = sym.getName()) {
          if (*sym_name == A) {
-            Symtab->addAllowedUndefFunction(*sym_name);
+            symtab->addAllowedUndefFunction(*sym_name);
             break;
          }
        }
     }
     if (should_define) {
-       if (Symbol *Sym = createDefined(WasmSym))
-         Symbols.push_back(Sym);
+       if (Symbol* Sym = createDefined(wasmSym))
+         symbols.push_back(Sym);
        else
-         Symbols.push_back(createUndefined(WasmSym));
+         symbols.push_back(createUndefined(wasmSym, true));
     }
-
-    size_t idx = symbols.size();
   }
 }
 
