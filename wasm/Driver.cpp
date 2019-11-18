@@ -486,13 +486,6 @@ static void createSyntheticSymbols() {
           "__wasm_apply_relocs", WASM_SYMBOL_VISIBILITY_HIDDEN,
           make<SyntheticFunction>(nullSignature, "__wasm_apply_relocs"));
     }
-    llvm::wasm::WasmGlobal Global;
-    Global.Type = {WASM_TYPE_I32, true};
-    Global.InitExpr.Value.Int32 = 0;
-    Global.InitExpr.Opcode = WASM_OPCODE_I32_CONST;
-    Global.SymbolName = "__stack_pointer";
-    InputGlobal *StackPointer = make<InputGlobal>(Global, nullptr);
-    StackPointer->live = true;
 
     static WasmSignature EntrySignature = config->OtherModel ? nullSignature : WasmSignature{{ValType::I64, ValType::I64, ValType::I64}, {}};
     WasmSym::EntryFunc = symtab->addSyntheticFunction(

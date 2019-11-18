@@ -355,7 +355,7 @@ void ObjFile::parse(bool ignoreComdats) {
        }
     }
     if (should_define) {
-       if (Symbol* Sym = createDefined(wasmSym))
+       if (Symbol* Sym = createDefined(wasmSym, true))
          symbols.push_back(Sym);
        else
          symbols.push_back(createUndefined(wasmSym, true));
@@ -390,14 +390,14 @@ DataSymbol *ObjFile::getDataSymbol(uint32_t index) const {
   return cast<DataSymbol>(symbols[index]);
 }
 
-Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
+Symbol *ObjFile::createDefined(const WasmSymbol &sym, bool absolute) {
   StringRef name = sym.Info.Name;
   uint32_t flags = sym.Info.Flags;
 
   switch (sym.Info.Kind) {
   case WASM_SYMBOL_TYPE_FUNCTION: {
     InputFunction *func =
-        functions[sym.Info.ElementIndex - wasmObj->getNumImportedFunctions()];
+        functions[sym.Info.ElementIndex - functions.size()];
     if (sym.isBindingLocal())
       return make<DefinedFunction>(name, flags, this, func);
     if (func->discarded)
