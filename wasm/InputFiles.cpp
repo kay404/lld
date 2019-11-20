@@ -322,6 +322,7 @@ void ObjFile::parse(bool ignoreComdats) {
     auto* func = make<InputFunction>(types[funcTypes[i]], &funcs[i], this);
     func->discarded = isExcludedByComdat(func);
     functions.emplace_back(func);
+    outs() << "functions.size() " << functions.size() << "\n";
   }
   setRelocs(functions, codeSection);
 
@@ -355,10 +356,10 @@ void ObjFile::parse(bool ignoreComdats) {
        }
     }
     if (should_define) {
-       if (Symbol* Sym = createDefined(wasmSym, true))
-         symbols.push_back(Sym);
-       else
-         symbols.push_back(createUndefined(wasmSym, true));
+       //if (Symbol* Sym = createDefined(wasmSym))
+       //  symbols.push_back(Sym);
+       //else
+      //symbols.push_back(createUndefined(wasmSym, true));
     }
   }
 }
@@ -390,14 +391,16 @@ DataSymbol *ObjFile::getDataSymbol(uint32_t index) const {
   return cast<DataSymbol>(symbols[index]);
 }
 
-Symbol *ObjFile::createDefined(const WasmSymbol &sym, bool absolute) {
+Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
   StringRef name = sym.Info.Name;
   uint32_t flags = sym.Info.Flags;
 
   switch (sym.Info.Kind) {
   case WASM_SYMBOL_TYPE_FUNCTION: {
+    if (sym.Info.ElementIndex - wasmObj->getNumImportedFunctions() > functions.size())
+       return nullptr;
     InputFunction *func =
-        functions[sym.Info.ElementIndex - functions.size()];
+        functions[sym.Info.ElementIndex - wasmObj->getNumImportedFunctions()];
     if (sym.isBindingLocal())
       return make<DefinedFunction>(name, flags, this, func);
     if (func->discarded)

@@ -62,7 +62,6 @@ private:
   void createCallCtorsFunction();
   void createInitTLSFunction();
 
-  void createCtorFunction();
   void createDispatchFunction();
   void calculateInitFunctions();
   void assignIndexes();
@@ -713,6 +712,183 @@ static constexpr uint64_t EOSIO_COMPILER_ERROR_BASE = 8000000000000000000ull;
 static constexpr uint64_t EOSIO_ERROR_NO_ACTION     = EOSIO_COMPILER_ERROR_BASE;
 static constexpr uint64_t EOSIO_ERROR_ONERROR       = EOSIO_COMPILER_ERROR_BASE+1;
 
+
+static void createFunction(DefinedFunction *func, StringRef bodyContent) {
+  std::string functionBody;
+  {
+    raw_string_ostream os(functionBody);
+    writeUleb128(os, bodyContent.size(), "function size");
+    os << bodyContent;
+  }
+  ArrayRef<uint8_t> body = arrayRefFromStringRef(saver.save(functionBody));
+  cast<SyntheticFunction>(func->function)->setBody(body);
+}
+
+void Writer::createInitMemoryFunction() {
+  LLVM_DEBUG(dbgs() << "createInitMemoryFunction\n");
+  std::string bodyContent;
+  {
+    raw_string_ostream os(bodyContent);
+    writeUleb128(os, 0, "num locals");
+
+    // initialize passive data segments
+    for (const OutputSegment *s : segments) {
+      if (s->initFlags & WASM_SEGMENT_IS_PASSIVE && s->name != ".tdata") {
+        // destination address
+        writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
+        writeSleb128(os, s->startVA, "destination address");
+        // source segment offset
+        writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
+        writeSleb128(os, 0, "segment offset");
+        // memory region size
+        writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
+        writeSleb128(os, s->size, "memory region size");
+        // memory.init instruction
+        writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
+        writeUleb128(os, WASM_OPCODE_MEMORY_INIT, "MEMORY.INIT");
+        writeUleb128(os, s->index, "segment index immediate");
+        writeU8(os, 0, "memory index immediate");
+        // data.drop instruction
+        writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
+        writeUleb128(os, WASM_OPCODE_DATA_DROP, "DATA.DROP");
+        writeUleb128(os, s->index, "segment index immediate");
+      }
+    }
+    writeU8(os, WASM_OPCODE_END, "END");
+  }
+
+  createFunction(WasmSym::initMemory, bodyContent);
+}
+
+// For -shared (PIC) output, we create create a synthetic function which will
+// apply any relocations to the data segments on startup.  This function is
+// called __wasm_apply_relocs and is added at the beginning of __wasm_call_ctors
+// before any of the constructors run.
+void Writer::createApplyRelocationsFunction() {
+  LLVM_DEBUG(dbgs() << "createApplyRelocationsFunction\n");
+  // First write the body's contents to a string.
+  std::string bodyContent;
+  {
+    raw_string_ostream os(bodyContent);
+    writeUleb128(os, 0, "num locals");
+    for (const OutputSegment *seg : segments)
+      for (const InputSegment *inSeg : seg->inputSegments)
+        inSeg->generateRelocationCode(os);
+    writeU8(os, WASM_OPCODE_END, "END");
+  }
+
+  createFunction(WasmSym::applyRelocs, bodyContent);
+}
+
+// Create synthetic "__wasm_call_ctors" function based on ctor functions
+// in input object.
+void Writer::createCallCtorsFunction() {
+  if (!WasmSym::callCtors->isLive())
+    return;
+
+  // First write the body's contents to a string.
+  std::string bodyContent;
+  {
+    raw_string_ostream os(bodyContent);
+    writeUleb128(os, 0, "num locals");
+
+    if (config->passiveSegments) {
+      writeU8(os, WASM_OPCODE_CALL, "CALL");
+      writeUleb128(os, WasmSym::initMemory->getFunctionIndex(),
+                   "function index");
+    }
+
+    if (config->isPic) {
+      writeU8(os, WASM_OPCODE_CALL, "CALL");
+      writeUleb128(os, WasmSym::applyRelocs->getFunctionIndex(),
+                   "function index");
+    }
+
+    // Call constructors
+    for (const WasmInitEntry &f : initFunctions) {
+      writeU8(os, WASM_OPCODE_CALL, "CALL");
+      writeUleb128(os, f.sym->getFunctionIndex(), "function index");
+    }
+    writeU8(os, WASM_OPCODE_END, "END");
+  }
+
+  createFunction(WasmSym::callCtors, bodyContent);
+}
+
+void Writer::createInitTLSFunction() {
+  if (!WasmSym::initTLS->isLive())
+    return;
+
+  std::string bodyContent;
+  {
+    raw_string_ostream os(bodyContent);
+
+    OutputSegment *tlsSeg = nullptr;
+    for (auto *seg : segments) {
+      if (seg->name == ".tdata") {
+        tlsSeg = seg;
+        break;
+      }
+    }
+
+    writeUleb128(os, 0, "num locals");
+    if (tlsSeg) {
+      writeU8(os, WASM_OPCODE_LOCAL_GET, "local.get");
+      writeUleb128(os, 0, "local index");
+
+      writeU8(os, WASM_OPCODE_GLOBAL_SET, "global.set");
+      writeUleb128(os, WasmSym::tlsBase->getGlobalIndex(), "global index");
+
+      writeU8(os, WASM_OPCODE_LOCAL_GET, "local.get");
+      writeUleb128(os, 0, "local index");
+
+      writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
+      writeSleb128(os, 0, "segment offset");
+
+      writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
+      writeSleb128(os, tlsSeg->size, "memory region size");
+
+      writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
+      writeUleb128(os, WASM_OPCODE_MEMORY_INIT, "MEMORY.INIT");
+      writeUleb128(os, tlsSeg->index, "segment index immediate");
+      writeU8(os, 0, "memory index immediate");
+    }
+    writeU8(os, WASM_OPCODE_END, "end function");
+  }
+
+  createFunction(WasmSym::initTLS, bodyContent);
+}
+
+// Populate InitFunctions vector with init functions from all input objects.
+// This is then used either when creating the output linking section or to
+// synthesize the "__wasm_call_ctors" function.
+void Writer::calculateInitFunctions() {
+  if (!config->relocatable && !WasmSym::callCtors->isLive())
+    return;
+
+  for (ObjFile *file : symtab->objectFiles) {
+    const WasmLinkingData &l = file->getWasmObj()->linkingData();
+    for (const WasmInitFunc &f : l.InitFunctions) {
+      FunctionSymbol *sym = file->getFunctionSymbol(f.Symbol);
+      // comdat exclusions can cause init functions be discarded.
+      if (sym->isDiscarded())
+        continue;
+      assert(sym->isLive());
+      if (*sym->signature != WasmSignature{{}, {}})
+        error("invalid signature for init func: " + toString(*sym));
+      LLVM_DEBUG(dbgs() << "initFunctions: " << toString(*sym) << "\n");
+      initFunctions.emplace_back(WasmInitEntry{sym, f.Priority});
+    }
+  }
+
+  // Sort in order of priority (lowest first) so that they are called
+  // in the correct order.
+  llvm::stable_sort(initFunctions,
+                    [](const WasmInitEntry &l, const WasmInitEntry &r) {
+                      return l.priority < r.priority;
+                    });
+}
+
 void Writer::createDispatchFunction() {
 
    auto create_if = [&](raw_string_ostream& os, std::string str, bool& need_else) {
@@ -939,7 +1115,6 @@ void Writer::createDispatchFunction() {
 
       }
 
-
       // create the pre_dispatch function call
       auto pre_sym = (FunctionSymbol*)symtab->find("pre_dispatch");
       if (pre_sym) {
@@ -989,194 +1164,8 @@ void Writer::createDispatchFunction() {
          writeU8(OS, OPCODE_END, "END");
       writeU8(OS, OPCODE_END, "END");
    }
-
-   std::string FunctionBody;
-   {
-      raw_string_ostream OS(FunctionBody);
-      writeUleb128(OS, BodyContent.size(), "function size");
-      OS << BodyContent;
-   }
-
-   ArrayRef<uint8_t> Body = arrayRefFromStringRef(saver.save(FunctionBody));
-   cast<SyntheticFunction>(WasmSym::EntryFunc->function)->setBody(Body);
+   createFunction(WasmSym::EntryFunc, BodyContent);
 };
-
-static void createFunction(DefinedFunction *func, StringRef bodyContent) {
-  std::string functionBody;
-  {
-    raw_string_ostream os(functionBody);
-    writeUleb128(os, bodyContent.size(), "function size");
-    os << bodyContent;
-  }
-  ArrayRef<uint8_t> body = arrayRefFromStringRef(saver.save(functionBody));
-  cast<SyntheticFunction>(func->function)->setBody(body);
-}
-
-void Writer::createInitMemoryFunction() {
-  LLVM_DEBUG(dbgs() << "createInitMemoryFunction\n");
-  std::string bodyContent;
-  {
-    raw_string_ostream os(bodyContent);
-    writeUleb128(os, 0, "num locals");
-
-    // initialize passive data segments
-    for (const OutputSegment *s : segments) {
-      if (s->initFlags & WASM_SEGMENT_IS_PASSIVE && s->name != ".tdata") {
-        // destination address
-        writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
-        writeSleb128(os, s->startVA, "destination address");
-        // source segment offset
-        writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
-        writeSleb128(os, 0, "segment offset");
-        // memory region size
-        writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
-        writeSleb128(os, s->size, "memory region size");
-        // memory.init instruction
-        writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
-        writeUleb128(os, WASM_OPCODE_MEMORY_INIT, "MEMORY.INIT");
-        writeUleb128(os, s->index, "segment index immediate");
-        writeU8(os, 0, "memory index immediate");
-        // data.drop instruction
-        writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
-        writeUleb128(os, WASM_OPCODE_DATA_DROP, "DATA.DROP");
-        writeUleb128(os, s->index, "segment index immediate");
-      }
-    }
-    writeU8(os, WASM_OPCODE_END, "END");
-  }
-
-  createFunction(WasmSym::initMemory, bodyContent);
-}
-
-// For -shared (PIC) output, we create create a synthetic function which will
-// apply any relocations to the data segments on startup.  This function is
-// called __wasm_apply_relocs and is added at the beginning of __wasm_call_ctors
-// before any of the constructors run.
-void Writer::createApplyRelocationsFunction() {
-  LLVM_DEBUG(dbgs() << "createApplyRelocationsFunction\n");
-  // First write the body's contents to a string.
-  std::string bodyContent;
-  {
-    raw_string_ostream os(bodyContent);
-    writeUleb128(os, 0, "num locals");
-    for (const OutputSegment *seg : segments)
-      for (const InputSegment *inSeg : seg->inputSegments)
-        inSeg->generateRelocationCode(os);
-    writeU8(os, WASM_OPCODE_END, "END");
-  }
-
-  createFunction(WasmSym::applyRelocs, bodyContent);
-}
-
-// Create synthetic "__wasm_call_ctors" function based on ctor functions
-// in input object.
-void Writer::createCallCtorsFunction() {
-  if (!WasmSym::callCtors->isLive())
-    return;
-
-  // First write the body's contents to a string.
-  std::string bodyContent;
-  {
-    raw_string_ostream os(bodyContent);
-    writeUleb128(os, 0, "num locals");
-
-    if (config->passiveSegments) {
-      writeU8(os, WASM_OPCODE_CALL, "CALL");
-      writeUleb128(os, WasmSym::initMemory->getFunctionIndex(),
-                   "function index");
-    }
-
-    if (config->isPic) {
-      writeU8(os, WASM_OPCODE_CALL, "CALL");
-      writeUleb128(os, WasmSym::applyRelocs->getFunctionIndex(),
-                   "function index");
-    }
-
-    // Call constructors
-    for (const WasmInitEntry &f : initFunctions) {
-      writeU8(os, WASM_OPCODE_CALL, "CALL");
-      writeUleb128(os, f.sym->getFunctionIndex(), "function index");
-    }
-    writeU8(os, WASM_OPCODE_END, "END");
-  }
-
-  createFunction(WasmSym::callCtors, bodyContent);
-}
-
-void Writer::createInitTLSFunction() {
-  if (!WasmSym::initTLS->isLive())
-    return;
-
-  std::string bodyContent;
-  {
-    raw_string_ostream os(bodyContent);
-
-    OutputSegment *tlsSeg = nullptr;
-    for (auto *seg : segments) {
-      if (seg->name == ".tdata") {
-        tlsSeg = seg;
-        break;
-      }
-    }
-
-    writeUleb128(os, 0, "num locals");
-    if (tlsSeg) {
-      writeU8(os, WASM_OPCODE_LOCAL_GET, "local.get");
-      writeUleb128(os, 0, "local index");
-
-      writeU8(os, WASM_OPCODE_GLOBAL_SET, "global.set");
-      writeUleb128(os, WasmSym::tlsBase->getGlobalIndex(), "global index");
-
-      writeU8(os, WASM_OPCODE_LOCAL_GET, "local.get");
-      writeUleb128(os, 0, "local index");
-
-      writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
-      writeSleb128(os, 0, "segment offset");
-
-      writeU8(os, WASM_OPCODE_I32_CONST, "i32.const");
-      writeSleb128(os, tlsSeg->size, "memory region size");
-
-      writeU8(os, WASM_OPCODE_MISC_PREFIX, "bulk-memory prefix");
-      writeUleb128(os, WASM_OPCODE_MEMORY_INIT, "MEMORY.INIT");
-      writeUleb128(os, tlsSeg->index, "segment index immediate");
-      writeU8(os, 0, "memory index immediate");
-    }
-    writeU8(os, WASM_OPCODE_END, "end function");
-  }
-
-  createFunction(WasmSym::initTLS, bodyContent);
-}
-
-// Populate InitFunctions vector with init functions from all input objects.
-// This is then used either when creating the output linking section or to
-// synthesize the "__wasm_call_ctors" function.
-void Writer::calculateInitFunctions() {
-  if (!config->relocatable && !WasmSym::callCtors->isLive())
-    return;
-
-  for (ObjFile *file : symtab->objectFiles) {
-    const WasmLinkingData &l = file->getWasmObj()->linkingData();
-    for (const WasmInitFunc &f : l.InitFunctions) {
-      FunctionSymbol *sym = file->getFunctionSymbol(f.Symbol);
-      // comdat exclusions can cause init functions be discarded.
-      if (sym->isDiscarded())
-        continue;
-      assert(sym->isLive());
-      if (*sym->signature != WasmSignature{{}, {}})
-        error("invalid signature for init func: " + toString(*sym));
-      LLVM_DEBUG(dbgs() << "initFunctions: " << toString(*sym) << "\n");
-      initFunctions.emplace_back(WasmInitEntry{sym, f.Priority});
-    }
-  }
-
-  // Sort in order of priority (lowest first) so that they are called
-  // in the correct order.
-  llvm::stable_sort(initFunctions,
-                    [](const WasmInitEntry &l, const WasmInitEntry &r) {
-                      return l.priority < r.priority;
-                    });
-}
-
 void Writer::createSyntheticSections() {
   out.dylinkSec = make<DylinkSection>();
   out.typeSec = make<TypeSection>();
@@ -1230,8 +1219,6 @@ void Writer::run(bool is_entry_defined) {
   assignIndexes();
   log("-- calculateInitFunctions");
   calculateInitFunctions();
-  if (!config->OtherModel && symtab->EntryIsUndefined)
-     createDispatchFunction();
 
   if (!config->relocatable) {
     // Create linker synthesized functions
@@ -1244,6 +1231,9 @@ void Writer::run(bool is_entry_defined) {
 
   if (!config->relocatable && config->sharedMemory && !config->shared)
     createInitTLSFunction();
+
+  if (!config->OtherModel && symtab->EntryIsUndefined)
+     createDispatchFunction();
 
   if (errorCount())
     return;
