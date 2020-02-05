@@ -183,8 +183,9 @@ opt::InputArgList WasmOptTable::parse(ArrayRef<const char *> argv) {
 // See: https://github.com/WebAssembly/tool-conventions/issues/35
 static void readImportFile(StringRef filename) {
   if (Optional<MemoryBufferRef> buf = readFile(filename))
-    for (StringRef sym : args::getLines(*buf))
+    for (StringRef sym : args::getLines(*buf)) {
       config->allowUndefinedSymbols.insert(sym);
+    }
 }
 
 // Returns slices of MB by parsing MB as an archive file.
@@ -801,6 +802,13 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   // Apply symbol renames for -wrap.
   if (!wrapped.empty())
     wrapSymbols(wrapped);
+
+  for (const auto* obj : symtab->objectFiles) {
+     const auto& wasmObj = obj->getWasmObj();
+     for (const auto& func : wasmObj->allowed_imports()) {
+       config->allowUndefinedSymbols.insert(func);
+     }
+  }
 
   for (auto *arg : args.filtered(OPT_export)) {
     Symbol *sym = symtab->find(arg->getValue());

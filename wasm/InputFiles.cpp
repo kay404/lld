@@ -336,25 +336,30 @@ void ObjFile::parse(bool ignoreComdats) {
   symbols.reserve(wasmObj->getNumberOfSymbols());
   for (const SymbolRef &sym : wasmObj->symbols()) {
     const WasmSymbol &wasmSym = wasmObj->getWasmSymbol(sym.getRawDataRefImpl());
-    if (wasmSym.isDefined()) {
-      // createDefined may fail if the symbol is comdat excluded in which case
-      // we fall back to creating an undefined symbol
-      if (Symbol *d = createDefined(wasmSym)) {
-        symbols.push_back(d);
-        continue;
-      }
-    }
-    size_t idx = symbols.size();
-    //bool shouldDefine = true;
+
+    bool should_define = false;
     for (const auto& allowed : wasmObj->allowed_imports()) {
-       if (auto symName = sym.getName()) {
-          if (*symName == allowed) {
-             symtab->addAllowedUndefFunction(*symName);
-             //symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
-             break;
-          }
-       }
+        if (auto symName = sym.getName()) {
+           if (*symName == allowed) {
+              if (symName)
+                 outs() << "Allowed symbol " << *symName << "\n";
+              symtab->addAllowedUndefFunction(*symName);
+              Symbol* s = symtab->find(*symName);
+              should_define = true;
+              break;
+           }
+        }
     }
+
+   if (wasmSym.isDefined()) {
+      if (Symbol* d = createDefined(wasmSym)) {
+         symbols.push_back(d);
+         continue;
+      }
+   }
+
+    size_t idx = symbols.size();
+    symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
   }
 }
 

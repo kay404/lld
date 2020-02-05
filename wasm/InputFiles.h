@@ -107,7 +107,7 @@ public:
   uint32_t calcNewAddend(const WasmRelocation &reloc) const;
   uint32_t calcExpectedValue(const WasmRelocation &reloc) const;
   Symbol *getSymbol(const WasmRelocation &reloc) const {
-    return symbols[reloc.Index];
+    return symbols.at(reloc.Index);
   };
 
   const WasmSection *codeSection = nullptr;

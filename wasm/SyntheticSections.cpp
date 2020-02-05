@@ -112,8 +112,10 @@ void ImportSection::addGOTEntry(Symbol *sym) {
 void ImportSection::addImport(Symbol *sym) {
   assert(!isSealed);
   importedSymbols.emplace_back(sym);
-  if (auto *f = dyn_cast<FunctionSymbol>(sym))
+  if (auto *f = dyn_cast<FunctionSymbol>(sym)) {
+    outs() << "Why!\n";
     f->setFunctionIndex(numImportedFunctions++);
+  }
   else if (auto *g = dyn_cast<GlobalSymbol>(sym))
     g->setGlobalIndex(numImportedGlobals++);
   else
