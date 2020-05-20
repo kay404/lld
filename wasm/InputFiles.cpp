@@ -350,7 +350,7 @@ void ObjFile::parse(bool ignoreComdats) {
        if (auto symName = sym.getName()) {
           if (*symName == allowed) {
              symtab->addAllowedUndefFunction(*symName);
-             //symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
+             symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
              break;
           }
        }

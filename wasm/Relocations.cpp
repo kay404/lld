@@ -29,8 +29,19 @@ static bool allowUndefined(const Symbol* sym) {
   // compiling with -fPIC)
   if (isa<DataSymbol>(sym))
     return false;
-  return (config->allowUndefined ||
-          config->allowUndefinedSymbols.count(sym->getName()) != 0);
+
+  bool isAllowed = config->allowUndefined || config->allowUndefinedSymbols.count(sym->getName()) != 0;
+  // dbgs() << "=== allowUndefined: " << sym->getName() << " : " << config->allowUndefinedSymbols.count(sym->getName()) << "\n";
+  if (!isAllowed) {
+    for (const auto *s : out.importSec->importedSymbols) {
+      if (sym->getName() == s->getName()) {
+        //dbgs() << "IMPORT"
+               //<< "\n";
+        isAllowed = true;
+      }
+    }
+  }
+  return isAllowed;
 }
 
 static void reportUndefined(const Symbol* sym) {
@@ -55,7 +66,15 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
     }
 
     // Other relocation types all have a corresponding symbol
-    Symbol *sym = file->getSymbols()[reloc.Index];
+
+    Symbol *sym;
+    if (reloc.Index < file->getSymbols().size()) {
+      sym = file->getSymbols()[reloc.Index];
+    } else {
+      continue;
+    }
+
+    dbgs() << "scanRelocations- " << "reloc.Index: " << reloc.Index << " - " << ((uint32_t)reloc.Type) << " - " << sym->getName() << "\n";
 
     switch (reloc.Type) {
     case R_WASM_TABLE_INDEX_I32:

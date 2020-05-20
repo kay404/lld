@@ -122,7 +122,13 @@ void lld::wasm::markLive() {
     for (const WasmRelocation reloc : c->getRelocations()) {
       if (reloc.Type == R_WASM_TYPE_INDEX_LEB)
         continue;
-      Symbol *sym = c->file->getSymbol(reloc.Index);
+      Symbol *sym;
+      if (reloc.Index < c->file->getSymbols().size()) {
+        sym = c->file->getSymbol(reloc.Index);
+          dbgs() << "MARKLIVE" << sym->getName() << ": " << reloc.Index << " - " << (uint32_t)reloc.Type << "\n";
+      } else {
+        sym = nullptr;
+      }
 
       // If the function has been assigned the special index zero in the table,
       // the relocation doesn't pull in the function body, since the function
