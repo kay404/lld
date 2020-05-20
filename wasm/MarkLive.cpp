@@ -35,25 +35,29 @@ void lld::wasm::markLive() {
   if (!config->gcSections)
     return;
 
-  LLVM_DEBUG(dbgs() << "markLive\n");
+  LLVM_DEBUG(dbgs() << "=== markLive ===\n");
   SmallVector<InputChunk *, 256> q;
 
   std::function<void(Symbol*)> enqueue = [&](Symbol *sym) {
     try {
        if (sym) {
-          outs() << "SSKD " << sym << "\n";
-          outs() << "Symbol Live " <<  sym->getName() << "\n";
+          // dbgs() << "SSKD " << sym << "\n";
+          // dbgs() << "enqueue " <<  sym->getName() << "\n";
+          LLVM_DEBUG(dbgs() << "enqueue: " << sym->getName() << "\n");
        }
     } catch (...) {
        /*skip*/
     }
 
-    if (!sym || sym->isLive())
+    if (!sym || sym->isLive()) {
       return;
-    LLVM_DEBUG(dbgs() << "markLive: " << sym->getName() << "\n");
+    }
+
     sym->markLive();
-    if (InputChunk *chunk = sym->getChunk())
+    if (InputChunk *chunk = sym->getChunk()) {
+      dbgs() << "Push back: " << chunk->getName() << "\n";
       q.push_back(chunk);
+    }
 
     // The ctor functions are all referenced by the synthetic callCtors
     // function.  However, this function does not contain relocations so we
@@ -77,6 +81,8 @@ void lld::wasm::markLive() {
   // Add GC root symbols.
   if (!config->entry.empty())
     enqueue(symtab->find(config->entry));
+
+  auto assert_sym = (FunctionSymbol*)symtab->find("eosio_assert_code");
 
   // We need to preserve any exported symbol
   for (Symbol *sym : symtab->getSymbols())
@@ -113,11 +119,19 @@ void lld::wasm::markLive() {
            }
         }
      }
+     for (const auto& import : wasmObj->imports()) {
+      dbgs() << "printing all wasmobj imports: " << import.Field << " - " << (uint32_t)import.Kind << "\n";
+     }
+     for (const auto& import : wasmObj->imports()) {
+        enqueue(symtab->find(import.Field));
+     }
   }
 
   // Follow relocations to mark all reachable chunks.
   while (!q.empty()) {
     InputChunk *c = q.pop_back_val();
+
+    dbgs() << "InputChunk name: " << c->getName() << "\n";
 
     for (const WasmRelocation reloc : c->getRelocations()) {
       if (reloc.Type == R_WASM_TYPE_INDEX_LEB)

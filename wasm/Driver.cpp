@@ -350,7 +350,8 @@ static void readConfigs(opt::InputArgList &args) {
   config->thinLTOJobs = args::getInteger(args, OPT_thinlto_jobs, -1u);
   errorHandler().verbose = args.hasArg(OPT_verbose);
   LLVM_DEBUG(errorHandler().verbose = true);
-  threadsEnabled = args.hasFlag(OPT_threads, OPT_no_threads, true);
+  // threadsEnabled = args.hasFlag(OPT_threads, OPT_no_threads, true);
+  threadsEnabled = false;
 
   config->initialMemory = args::getInteger(args, OPT_initial_memory, 0);
   config->globalBase = args::getInteger(args, OPT_global_base, 1024);
@@ -425,6 +426,7 @@ static void checkOptions(opt::InputArgList &args) {
 
 // Force Sym to be entered in the output. Used for -u or equivalent.
 static Symbol *handleUndefined(StringRef name) {
+  LLVM_DEBUG(dbgs() << "handledUndefined: " << name << "\n");
   Symbol *sym = symtab->find(name);
   if (!sym)
     return nullptr;
@@ -658,6 +660,8 @@ static void wrapSymbols(ArrayRef<WrappedSymbol> wrapped) {
 
 void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   WasmOptTable parser;
+  FunctionSymbol* assert_sym;
+
   opt::InputArgList args = parser.parse(argsArr.slice(1));
 
   // Handle --help
@@ -730,6 +734,8 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
+  dbgs() << "After addFile" << "\n";
+
   // Handle the `--undefined <sym>` options.
   for (auto *arg : args.filtered(OPT_undefined))
     handleUndefined(arg->getValue());
@@ -792,6 +798,8 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
      }
   }
 
+  dbgs() << "After exportStrs" << "\n";
+
   // Resolve any variant symbols that were created due to signature
   // mismatchs.
   symtab->handleSymbolVariants();
@@ -825,6 +833,7 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
 
   // Do size optimizations: garbage collection
   markLive();
+
 
   // Write the result to the file.
   writeResult();

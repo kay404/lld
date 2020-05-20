@@ -609,12 +609,18 @@ void Writer::calculateTypes() {
 static void scanRelocations() {
   for (ObjFile *file : symtab->objectFiles) {
     LLVM_DEBUG(dbgs() << "scanRelocations: " << file->getName() << "\n");
-    for (InputChunk *chunk : file->functions)
+    for (InputChunk *chunk : file->functions) {
+      LLVM_DEBUG(dbgs() << "functions" << "\n");
       scanRelocations(chunk);
-    for (InputChunk *chunk : file->segments)
+    }
+    for (InputChunk *chunk : file->segments) {
+      LLVM_DEBUG(dbgs() << "segments" << "\n");
       scanRelocations(chunk);
-    for (auto &p : file->customSections)
+    }
+    for (auto &p : file->customSections) {
+      LLVM_DEBUG(dbgs() << "customSections" << "\n");
       scanRelocations(p);
+    }
   }
 }
 
@@ -928,10 +934,17 @@ void Writer::createDispatchFunction() {
          throw std::runtime_error("wasm_ld internal error function not found");
    };
 
+   auto a = symtab->getSymbols();
+   for (const auto* b : a) {
+     // TODO: just need b
+     auto c = b;
+   }
    auto assert_sym = (FunctionSymbol*)symtab->find("eosio_assert_code");
    uint32_t assert_idx = UINT32_MAX;
-   if (assert_sym)
+   if (assert_sym) {
+     dbgs() << "assert_sym" << "\n";
      assert_idx = assert_sym->getFunctionIndex();
+   }
    auto post_sym = (FunctionSymbol*)symtab->find("post_dispatch");
 
    auto create_action_dispatch = [&](raw_string_ostream& OS) {
@@ -963,6 +976,10 @@ void Writer::createDispatchFunction() {
       writeU8(OS, OPCODE_IF, "if receiver != eosio");
       writeU8(OS, 0x40, "none");
 
+      dbgs() << "=== createDispatchFunction ===" << "\n";
+      dbgs() << assert_idx << "\n";
+      dbgs() << symtab->getSymbols().size() << "\n";
+
       if (assert_sym && assert_idx < symtab->getSymbols().size()) {
         // assert that no action was found
         writeU8(OS, OPCODE_I32_CONST, "I32.CONST");
@@ -976,6 +993,7 @@ void Writer::createDispatchFunction() {
       }
       if (post_sym) {
          writeU8(OS, OPCODE_ELSE, "ELSE");
+         dbgs() << "post_sym" << "\n";
          uint32_t post_idx  = post_sym->getFunctionIndex();
          writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
          writeUleb128(OS, 0, "receiver");
@@ -1094,6 +1112,7 @@ void Writer::createDispatchFunction() {
 
       if (post_sym) {
          writeU8(OS, OPCODE_ELSE, "ELSE");
+         dbgs() << "post_sym" << "\n";
          uint32_t post_idx  = post_sym->getFunctionIndex();
          writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
          writeUleb128(OS, 0, "receiver");
@@ -1118,7 +1137,11 @@ void Writer::createDispatchFunction() {
       // create ctors call
       auto ctors_sym = (FunctionSymbol*)symtab->find("__wasm_call_ctors");
       if (ctors_sym) {
-         uint32_t ctors_idx = ctors_sym->getFunctionIndex();
+         dbgs() << "ctors_sym" << "\n";
+         uint32_t ctors_idx;
+         if (ctors_sym->hasFunctionIndex()) {
+          ctors_idx = ctors_sym->getFunctionIndex();
+         }
          if (ctors_idx != 0) {
             writeU8(OS, OPCODE_CALL, "CALL");
             writeUleb128(OS, ctors_idx, "__wasm_call_ctors");
@@ -1129,6 +1152,7 @@ void Writer::createDispatchFunction() {
       // create the pre_dispatch function call
       auto pre_sym = (FunctionSymbol*)symtab->find("pre_dispatch");
       if (pre_sym) {
+         dbgs() << "pre_sym" << "\n";
          uint32_t pre_idx  = pre_sym->getFunctionIndex();
          writeU8(OS, OPCODE_GET_LOCAL, "GET_LOCAL");
          writeUleb128(OS, 0, "receiver");
@@ -1163,6 +1187,7 @@ void Writer::createDispatchFunction() {
 
       auto dtors_sym = (FunctionSymbol*)symtab->find("__cxa_finalize");
       if (dtors_sym) {
+         dbgs() << "dtors_syx" << "\n";
          uint32_t dtors_idx = dtors_sym->getFunctionIndex();
          if (dtors_idx != 0 && dtors_idx < symtab->getSymbols().size()) {
             writeU8(OS, OPCODE_I32_CONST, "I32.CONST");

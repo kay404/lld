@@ -475,7 +475,7 @@ Symbol *SymbolTable::addUndefinedGlobal(StringRef name, StringRef importName,
 }
 
 void SymbolTable::addLazy(ArchiveFile *file, const Archive::Symbol *sym) {
-  LLVM_DEBUG(dbgs() << "addLazy: " << sym->getName() << "\n");
+  //LLVM_DEBUG(dbgs() << "addLazy: " << sym->getName() << "\n");
   StringRef name = sym->getName();
 
   Symbol *s;

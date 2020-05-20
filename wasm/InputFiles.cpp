@@ -225,7 +225,15 @@ static void setRelocs(const std::vector<T *> &chunks,
     relocsNext = std::lower_bound(
         relocsStart, relocsEnd, c->getInputSectionOffset() + c->getInputSize(),
         relocLess);
-    c->setRelocations(ArrayRef<WasmRelocation>(relocsStart, relocsNext));
+    ArrayRef<WasmRelocation> a(relocsStart, relocsNext);
+    dbgs() << "setRelocs: " << c->getName() << " size: "<< a.size() << "\n";
+    for (const auto& b : a) {
+      // dbgs() << "Name: " << c->file->getSymbol(b.Index) << " Index: " << b.Index << " Type: " << (uint32_t)b.Type << "\n";
+      dbgs() << "Index: " << b.Index << " Type: " << (uint32_t)b.Type << "\n";
+      //TODO: just so I can get b
+      auto c = b;
+    }
+    c->setRelocations(a);
   }
 }
 
@@ -303,12 +311,15 @@ void ObjFile::parse(bool ignoreComdats) {
     keptComdats.push_back(isNew);
   }
 
+  dbgs() << "parse segments: " << "\n";
   // Populate `Segments`.
   for (const WasmSegment &s : wasmObj->dataSegments()) {
+    dbgs() << s.Data.Name << "\n";
     auto* seg = make<InputSegment>(s, this);
     seg->discarded = isExcludedByComdat(seg);
     segments.emplace_back(seg);
   }
+
   setRelocs(segments, dataSection);
 
   // Populate `Functions`.
@@ -317,11 +328,14 @@ void ObjFile::parse(bool ignoreComdats) {
   ArrayRef<WasmSignature> types = wasmObj->types();
   functions.reserve(funcs.size());
 
+  dbgs() << "parse funcs: " << "\n";
   for (size_t i = 0, e = funcs.size(); i != e; ++i) {
     auto* func = make<InputFunction>(types[funcTypes[i]], &funcs[i], this);
+    dbgs() << func->getName() << "\n";
     func->discarded = isExcludedByComdat(func);
     functions.emplace_back(func);
   }
+
   setRelocs(functions, codeSection);
 
   // Populate `Globals`.
@@ -366,6 +380,13 @@ bool ObjFile::isExcludedByComdat(InputChunk *chunk) const {
 }
 
 FunctionSymbol *ObjFile::getFunctionSymbol(uint32_t index) const {
+  dbgs() << "getFunctionSymbol: " << index;
+  auto* b = symbols[index];
+  if (b) {
+    dbgs() << b->getName() << "\n";
+  } else {
+    dbgs() << "\n";
+  }
   return cast<FunctionSymbol>(symbols[index]);
 }
 
