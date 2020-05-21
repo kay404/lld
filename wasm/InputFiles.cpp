@@ -226,13 +226,12 @@ static void setRelocs(const std::vector<T *> &chunks,
         relocsStart, relocsEnd, c->getInputSectionOffset() + c->getInputSize(),
         relocLess);
     ArrayRef<WasmRelocation> a(relocsStart, relocsNext);
+#if 0
     dbgs() << "setRelocs: " << c->getName() << " size: "<< a.size() << "\n";
     for (const auto& b : a) {
-      // dbgs() << "Name: " << c->file->getSymbol(b.Index) << " Index: " << b.Index << " Type: " << (uint32_t)b.Type << "\n";
       dbgs() << "Index: " << b.Index << " Type: " << (uint32_t)b.Type << "\n";
-      //TODO: just so I can get b
-      auto c = b;
     }
+#endif
     c->setRelocations(a);
   }
 }
@@ -253,6 +252,32 @@ void ObjFile::parse(bool ignoreComdats) {
 
   // Build up a map of function indices to table indices for use when
   // verifying the existing table index relocations
+  // TODO:
+  // I think things are not being handled correctly here in regards to the symbols
+  dbgs() << "ObjFile::parse" << "\n";
+  dbgs() << "numImportedFunctions: " << wasmObj->getNumImportedFunctions() << "\n";
+  dbgs() << "numImportedGlobals: " << wasmObj->getNumImportedGlobals() << "\n";
+  dbgs() << "numImportedEvents: " << wasmObj->getNumImportedEvents() << "\n";
+  dbgs() << "functions: " << wasmObj->functions().size() << "\n";
+  dbgs() << "elemSize: " << wasmObj->elements().size() << "\n";
+  dbgs() << "globals: " << wasmObj->globals().size() << "\n";
+  dbgs() << "events: " << wasmObj->events().size() << "\n";
+  dbgs() << "imports: " << wasmObj->imports().size() << "\n";
+  dbgs() << "memories: " << wasmObj->memories().size() << "\n";
+
+  dbgs() << "\n" << "Total: " << (
+    wasmObj->imports().size() + wasmObj->functions().size() + wasmObj->elements().size() +
+    wasmObj->globals().size()
+  ) << "\n\n";
+
+  dbgs() << "symbolsSize: " << wasmObj->getNumberOfSymbols() << "\n";
+
+#if 0
+  dbgs() << "List all imports: " << "\n";
+  for (auto& wi : wasmObj->imports()) {
+    dbgs() << "\t" << wi.Field << "\n";
+  }
+#endif
   uint32_t totalFunctions =
       wasmObj->getNumImportedFunctions() + wasmObj->functions().size();
   tableEntries.resize(totalFunctions);
@@ -281,6 +306,9 @@ void ObjFile::parse(bool ignoreComdats) {
   // See https://bugs.llvm.org/show_bug.cgi?id=40412
   std::vector<bool> isCalledDirectly(wasmObj->getNumberOfSymbols(), false);
   for (const SectionRef &sec : wasmObj->sections()) {
+    StringRef s;
+    sec.getName(s);
+    dbgs() << s << "\n";
     const WasmSection &section = wasmObj->getWasmSection(sec);
     // Wasm objects can have at most one code and one data section.
     if (section.Type == WASM_SEC_CODE) {
@@ -297,9 +325,11 @@ void ObjFile::parse(bool ignoreComdats) {
     sectionIndex++;
     // Scans relocations to dermine determine if a function symbol is called
     // directly
-    for (const WasmRelocation &reloc : section.Relocations)
+    for (const WasmRelocation &reloc : section.Relocations) {
+      // dbgs() << reloc.Index << " _ " << (uint32_t)reloc.Type << "\n";
       if (reloc.Type == R_WASM_FUNCTION_INDEX_LEB)
         isCalledDirectly[reloc.Index] = true;
+    }
   }
 
   typeMap.resize(getWasmObj()->types().size());
@@ -339,37 +369,55 @@ void ObjFile::parse(bool ignoreComdats) {
   setRelocs(functions, codeSection);
 
   // Populate `Globals`.
-  for (const WasmGlobal &g : wasmObj->globals())
+  for (const WasmGlobal &g : wasmObj->globals()) {
+    dbgs() << "Add global: " << g.SymbolName << "\n";
     globals.emplace_back(make<InputGlobal>(g, this));
+  }
 
   // Populate `Events`.
-  for (const WasmEvent &e : wasmObj->events())
+  for (const WasmEvent &e : wasmObj->events()) {
+    dbgs() << "Add event: " << e.SymbolName << "\n";
     events.emplace_back(make<InputEvent>(types[e.Type.SigIndex], e, this));
+  }
 
   // Populate `Symbols` based on the symbols in the object.
   symbols.reserve(wasmObj->getNumberOfSymbols());
   for (const SymbolRef &sym : wasmObj->symbols()) {
     const WasmSymbol &wasmSym = wasmObj->getWasmSymbol(sym.getRawDataRefImpl());
-    if (wasmSym.isDefined()) {
-      // createDefined may fail if the symbol is comdat excluded in which case
-      // we fall back to creating an undefined symbol
-      if (Symbol *d = createDefined(wasmSym)) {
-        symbols.push_back(d);
-        continue;
-      }
-    }
+#if 0
+    dbgs() << "wasmSym: " << wasmSym.Info.Name
+      << " isDefined:" << wasmSym.isDefined()
+      << " isTypeData:" << wasmSym.isTypeData()
+      << " isTypeGlobal:" << wasmSym.isTypeGlobal()
+      << " isTypeFunction:" << wasmSym.isTypeFunction() << "\n";
+#endif
+
     size_t idx = symbols.size();
     //bool shouldDefine = true;
     for (const auto& allowed : wasmObj->allowed_imports()) {
        if (auto symName = sym.getName()) {
           if (*symName == allowed) {
              symtab->addAllowedUndefFunction(*symName);
-             symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
              break;
           }
        }
     }
+
+    if (wasmSym.isDefined()) {
+      // createDefined may fail if the symbol is comdat excluded in which case
+      // we fall back to creating an undefined symbol
+      if (Symbol *d = createDefined(wasmSym)) {
+        symbols.push_back(d);
+        //continue;
+      }
+    } else {
+      symbols.push_back(createUndefined(wasmSym, isCalledDirectly[idx]));
+    }
   }
+
+  // TODO: During ObjFile creation, the symbols are getting out of order from the Relocations.
+  // TODO: This is causing a failure when writing the final file.
+  dbgs() << "ObjFile::parse end: " << symbols.size() << "\n";
 }
 
 bool ObjFile::isExcludedByComdat(InputChunk *chunk) const {

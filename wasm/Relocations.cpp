@@ -31,12 +31,9 @@ static bool allowUndefined(const Symbol* sym) {
     return false;
 
   bool isAllowed = config->allowUndefined || config->allowUndefinedSymbols.count(sym->getName()) != 0;
-  // dbgs() << "=== allowUndefined: " << sym->getName() << " : " << config->allowUndefinedSymbols.count(sym->getName()) << "\n";
   if (!isAllowed) {
     for (const auto *s : out.importSec->importedSymbols) {
       if (sym->getName() == s->getName()) {
-        //dbgs() << "IMPORT"
-               //<< "\n";
         isAllowed = true;
       }
     }
@@ -56,7 +53,16 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
     return;
   ObjFile *file = chunk->file;
   ArrayRef<WasmSignature> types = file->getWasmObj()->types();
+#if 0
+  dbgs() << "List all symbols" << "\n";
+  for (int i = 0; i < file->getSymbols().size(); ++i) {
+    Symbol *sym = file->getSymbols()[i];
+    dbgs() << "\t" << sym->getName() << " index: " << i << "\n";
+  }
+  dbgs() << "\n";
+#endif
   for (const WasmRelocation &reloc : chunk->getRelocations()) {
+    dbgs() << "Name: " << file->getSymbols()[reloc.Index];
     if (reloc.Type == R_WASM_TYPE_INDEX_LEB) {
       // Mark target type as live
       file->typeMap[reloc.Index] =
@@ -73,6 +79,7 @@ void lld::wasm::scanRelocations(InputChunk *chunk) {
     } else {
       continue;
     }
+
 
     dbgs() << "scanRelocations- " << "reloc.Index: " << reloc.Index << " - " << ((uint32_t)reloc.Type) << " - " << sym->getName() << "\n";
 

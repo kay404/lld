@@ -70,9 +70,10 @@ void DylinkSection::writeBody() {
 uint32_t TypeSection::registerType(const WasmSignature &sig) {
   auto pair = typeIndices.insert(std::make_pair(sig, types.size()));
   if (pair.second) {
-    LLVM_DEBUG(llvm::dbgs() << "type " << toString(sig) << "\n");
+    //LLVM_DEBUG(llvm::dbgs() << "type " << toString(sig) << "\n");
     types.push_back(&sig);
   }
+  dbgs() << "type " << toString(sig) << "\t" << "Return size: " << sig.Returns.size() << "\n";
   return pair.first->second;
 }
 

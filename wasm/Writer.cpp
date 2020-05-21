@@ -593,17 +593,22 @@ void Writer::calculateTypes() {
   }
 
   for (const Symbol *sym : out.importSec->importedSymbols) {
+    dbgs() << "Name: " << sym->getName() << "\n";
     if (auto *f = dyn_cast<FunctionSymbol>(sym))
       out.typeSec->registerType(*f->signature);
     else if (auto *e = dyn_cast<EventSymbol>(sym))
       out.typeSec->registerType(*e->signature);
   }
 
-  for (const InputFunction *f : out.functionSec->inputFunctions)
+  for (const InputFunction *f : out.functionSec->inputFunctions) {
+    dbgs() << "Name: " << f->getName() << "\n";
     out.typeSec->registerType(f->signature);
+  }
 
-  for (const InputEvent *e : out.eventSec->inputEvents)
+  for (const InputEvent *e : out.eventSec->inputEvents) {
+    dbgs() << "Name: " << e->getName() << "\n";
     out.typeSec->registerType(e->signature);
+  }
 }
 
 static void scanRelocations() {

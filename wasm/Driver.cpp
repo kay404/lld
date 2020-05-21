@@ -729,12 +729,22 @@ void LinkerDriver::link(ArrayRef<const char *> argsArr) {
 
   // Add all files to the symbol table. This will add almost all
   // symbols that we need to the symbol table.
-  for (InputFile *f : files)
+  for (InputFile *f : files) {
     symtab->addFile(f);
+#if 0
+    if (f->getName() == "hello.o") {
+      dbgs() << "List all symbols: " << "\n";
+      for (int i = 0; i < f->getSymbols().size(); ++i) {
+        Symbol *sym = f->getSymbols()[i];
+        dbgs() << "\t" << sym->getName() << "\t\t\t\t\tindex: " << i << "\n";
+      }
+      dbgs() << "\n";
+    }
+#endif
+  }
   if (errorCount())
     return;
 
-  dbgs() << "After addFile" << "\n";
 
   // Handle the `--undefined <sym>` options.
   for (auto *arg : args.filtered(OPT_undefined))

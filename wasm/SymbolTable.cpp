@@ -196,6 +196,7 @@ DefinedFunction *SymbolTable::addSyntheticFunction(StringRef name,
                                                    uint32_t flags,
                                                    InputFunction *function) {
   LLVM_DEBUG(dbgs() << "addSyntheticFunction: " << name << "\n");
+  dbgs() << "Signature: " << toString(function->signature) << " Return size: " << function->signature.Returns.size() << "\n";
   assert(!find(name));
   syntheticFunctions.emplace_back(function);
   return replaceSymbol<DefinedFunction>(insertName(name).first, name,
