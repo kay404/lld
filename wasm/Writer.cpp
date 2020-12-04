@@ -1039,7 +1039,7 @@ void Writer::createDispatchFunction() {
          throw std::runtime_error("wasm_ld internal error function not found");
    };
 
-   auto assert_sym = (FunctionSymbol*)Symtab->find("eosio_assert_code");
+   auto assert_sym = (FunctionSymbol*)Symtab->find("icbs_assert_code");
    uint32_t assert_idx = UINT32_MAX;
    if (assert_sym)
      assert_idx = assert_sym->getFunctionIndex();
